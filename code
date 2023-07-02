@@ -1,0 +1,586 @@
+#include <stdio.h>
+#include "system.h"
+#include "altera_avalon_pio_regs.h"
+#include "altera_avalon_spi_regs.h"
+#include "altera_avalon_spi.h"
+#include <stdlib.h>
+#include <unistd.h>
+
+
+int x =0;
+int c1 =  0;
+int c2 = 0;
+int k = 0;
+int i2=0;
+int shape_position = 4;
+int counter = 4;
+int checking = 0;
+int Game_speed = 15;
+int Score = 0;
+int debounce = 0;
+int check_cond = 1;
+
+int matrix[12][8] = {
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,1,1,1,1,1,1,1},
+};
+
+int new_matrix[12][8] = {
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,0,0,0,0,0,0,1},
+		{1,1,1,1,1,1,1,1},
+};
+
+
+
+
+
+int select_shape (void);
+void move_shape_right (void);
+void move_shape_left (void);
+void move_shape_rotate (int k2, int x3);
+void check_full_row(void);
+void move_row_down(void);
+int check_matrix(int row_num);
+void check_clear_matrix(void);
+void clear_matrix(void);
+void make_matrix (int row_num, int col_num,int k2 );
+void Level_up (void);
+void DisplayPrint(char *text);
+
+
+
+
+
+int main()
+
+{
+
+while(1)
+	 {
+	    DisplayPrint("   Game Started");
+
+        //this function choose random shape
+		int x2 = select_shape();
+
+        //this function drop the shape in game board
+		for (int i=0; i < 12; i++)
+		{   i2=i;
+            //check if collision detected
+			check_cond = check_matrix(i+1);
+
+			if (check_cond == 1){
+                //check if four points of rows are full
+				check_full_row();
+                //check if the game board is full to game over
+				check_clear_matrix();
+				continue;
+				usleep(1000000);
+				i = 0;
+
+			}
+
+
+		for (int j =0; j<Game_speed;)
+		{
+	    IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1);
+	    IOWR_ALTERA_AVALON_PIO_DATA(ROW_BASE, 0b100000000000 >> i);
+	    usleep(10000);
+	    IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2);
+	    IOWR_ALTERA_AVALON_PIO_DATA(ROW_BASE, 0b010000000000 >> i);
+	    usleep(10000);
+	    j++;
+
+
+        //print the game board
+	    for(int row =0;row < 12; row ++)
+	    	    	{
+	    	    		for(int col = 0; col < 8; col ++)
+	    	    		{
+	    	    			if(matrix[row][col]>=1)
+	    	    			{
+	    	    			    IOWR_ALTERA_AVALON_PIO_DATA(ROW_BASE, 0b100000000000 >> row);
+	    	    			    IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, 0b10000000 >> col);
+	    	    			    usleep(100);
+	    	    			}
+
+	    	    			IOWR_ALTERA_AVALON_PIO_DATA(ROW_BASE, 0x00);
+	    	    			IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, 0x00);
+	    	    			usleep(100);
+	    	    		}
+	    		}
+
+	    usleep(1000);
+	    IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, 0x00);
+	    IOWR_ALTERA_AVALON_PIO_DATA(ROW_BASE, 0x00);
+	    usleep(1000);
+
+	    //move the shape to right if right button pressed
+	    if(IORD_ALTERA_AVALON_PIO_DATA(BUT_BASE)==11)
+
+	    {
+	    	usleep(200000);
+	        debounce ++;
+	        if (debounce == 1){
+	        move_shape_right ();
+	        }
+	        else
+	        {
+	        	debounce = 0;
+	        }
+
+	    }
+	    //move the shape to left if left button pressed
+	    if(IORD_ALTERA_AVALON_PIO_DATA(BUT_BASE)==13)
+
+	    {
+	    	usleep(200000);
+	        debounce ++;
+	        if (debounce == 1){
+	        move_shape_left ();
+	        }
+	        else
+	        {
+	        	debounce = 0;
+	        }
+	    }
+	    //rotate the shape to if up button pressed
+	    if(IORD_ALTERA_AVALON_PIO_DATA(BUT_BASE)==14)
+
+	    {
+	    	usleep(200000);
+	        debounce ++;
+	        if (debounce == 1)
+	        {
+		    	move_shape_rotate (k,x2);
+		    	k = k +1;
+	        }
+	        else
+	        {
+	        	debounce = 0;
+	        }
+
+	    }
+
+		}
+
+
+
+			printf("\n int i equal %d \n",i);
+
+
+		}
+
+
+	     k =0;
+	     printf("c1 equal %d \n",c1);
+	     printf("c2 equal %d \n",c2);
+	     //printf("int i equal %d \n",i);
+
+
+	 }
+
+}
+
+
+int select_shape (void)
+{
+	//int x = 2;
+   x = rand() % 3 + 1 ;
+   printf("x equal %d \n",x);
+   if (x==1 || x==4)
+   {
+	   c1 = 0x08;
+	   c2 = 0x18;
+	   printf("SHAPE L \n");
+
+   }
+   if (x==2 || x==5)
+   {
+	   c1 =  0x18;
+	   c2 = 0x18;
+	   printf("SHAPE SQUARE \n");
+   }
+   if (x==3)
+   {
+	   c1 = 0x00;
+	   c2 = 0x18;
+	   printf("SHAPE LINE \n");
+   }
+
+   return x;
+}
+
+void move_shape_right (void){
+
+	if ((shape_position == 6) | (shape_position > 2))
+	{
+
+	if (matrix[i2 ][shape_position + 2]==0)
+	{
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 >> 1);
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 >> 1);
+	c1 = c1 >> 1 ;
+	c2 = c2 >> 1 ;
+	printf("shape position is %d\n",shape_position);
+	//shape_position -= 1 ;
+	}
+
+	shape_position -= 1 ;
+}
+	else
+	{
+		IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 >> 0);
+		IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 >> 0);
+	}
+}
+
+void move_shape_left (void){
+
+	if ((shape_position < 6) | (shape_position == 2)) {
+
+	if (matrix[i2 ][shape_position - 3]==0){
+
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 << 1);
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 << 1);
+	c1 = c1 << 1 ;
+	c2 = c2 << 1 ;
+	//if (counter < 9) {
+	//counter += 1;
+	//}
+	printf("shape position is %d\n",shape_position);
+	}
+	shape_position += 1;
+
+    }
+	else
+	{
+		IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 << 0);
+		IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 << 0);
+	}
+}
+
+void move_shape_rotate (int k2, int x3)
+
+{
+    if (x3==1)
+    {
+	if (k2==0 || k2==4 || k2==8 || k2==12)
+	{
+	c1 = 0x08;
+	c2 = 0x18;
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 );
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 );
+
+	}
+	if (k2==1 || k2==5 || k2==9 || k2==13)
+	{
+	c1 = 0x10;
+	c2 = 0x18;
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 );
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 );
+
+	}
+
+	if (k2==2 || k2==6 || k2==10 || k2==14)
+	{
+	c1 = 0x18;
+	c2 = 0x10;
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 );
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 );
+
+	}
+
+	if (k2==3 || k2==7 || k2==11 || k2==15)
+	{
+        c1 = 0x18;
+        c2 = 0x08;
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 );
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 );
+
+	}
+    }
+
+    if (x3==3)
+     {
+	if (k2==0 || k2==4 || k2==8 || k2==12)
+	{
+	c1 = 0x00;
+	c2 = 0x18;
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 );
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 );
+
+	}
+	if (k2==1 || k2==5 || k2==9 || k2==13)
+	{
+	c1 = 0x10;
+	c2 = 0x10;
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 );
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 );
+
+	}
+
+	if (k2==2 || k2==6 || k2==10 || k2==14)
+	{
+	c1 = 0x00;
+	c2 = 0x18;
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 );
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 );
+
+	}
+
+	if (k2==3 || k2==7 || k2==11 || k2==15)
+	{
+        c1 = 0x10;
+        c2 = 0x10;
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c1 );
+	IOWR_ALTERA_AVALON_PIO_DATA(COL_BASE, c2 );
+
+	}
+    }
+
+
+}
+
+
+int check_matrix(int row_num){
+	printf("inside check matrix function");
+	if (matrix[row_num][shape_position] == 1 || matrix[row_num][shape_position-1] == 1    )
+	{   usleep(10000);
+		make_matrix(row_num,shape_position,k);
+		printf ("making shape\n");
+		return 1;
+
+	}
+	return 0;
+
+}
+
+void make_matrix (int row_num, int col_num,int k2 ){
+	counter = 7-shape_position;
+	if (x==3)
+	{
+		if (k2==0 || k2==4 || k2==8 || k2==12)
+		{
+	        matrix[row_num-1][counter]   =1;
+			matrix[row_num-1][counter+1]   =1;
+
+
+			printf("inside line matrix function\n");
+		}
+		if (k2==1 || k2==5 || k2==9 || k2==13)
+		{
+	        matrix[row_num-2][counter]   =1;
+			matrix[row_num-1][counter]   =1;
+
+
+			printf("inside line matrix function\n");
+		}
+		if (k2==2 || k2==6 || k2==10 || k2==14)
+		{
+		       matrix[row_num-1][counter]   =1;
+			   matrix[row_num-1][counter+1]   =1;
+
+		}
+		if (k2==3 || k2==7 || k2==11 || k2==15)
+		{
+	        matrix[row_num-2][counter]   =1;
+			matrix[row_num-1][counter]   =1;
+
+			printf("inside line matrix function\n");
+		}
+
+
+	}
+
+		if (x==2)
+		{
+		matrix[row_num-2][counter]   =1;
+		matrix[row_num-2][counter+1]= 1;
+		matrix[row_num-1][counter]   =1;
+		matrix[row_num -1][counter+1] =1;
+
+		printf("inside square matrix function\n");
+		}
+
+		if (x==1 || x==4){
+			if (k2==0 || k2==4 || k2==8 || k2==12)
+			{
+
+				matrix[row_num-2][counter+1]= 1;
+				matrix[row_num-1][counter]   =1;
+				matrix[row_num -1][counter+1] =1;
+				printf("inside L matrix function\n");
+
+			}
+			if (k2==1 || k2==5 || k2==9 || k2==13)
+			{
+				matrix[row_num-2][counter+1]= 1;
+				matrix[row_num-2][counter]   =1;
+				matrix[row_num-2][counter+1] =1;
+				printf("inside L matrix function\n");
+			}
+			if (k2==2 || k2==6 || k2==10 || k2==14)
+			{
+				matrix[row_num-2][counter+1]= 1;
+				matrix[row_num-2][counter]   =1;
+				matrix[row_num -1][counter] =1;
+				printf("inside L matrix function\n");
+			}
+			if (k2==3 || k2==7 || k2==11 || k2==15)
+			{
+				matrix[row_num-2][counter+1]= 1;
+				matrix[row_num-2][counter]   =1;
+				matrix[row_num -1][counter+1] =1;
+				printf("inside L matrix function\n");
+			}
+
+
+				}
+
+		shape_position= 4;
+
+}
+
+
+
+void check_clear_matrix(void){
+int row_number = 0;
+for (int col_number = 1;col_number<7;col_number ++){
+
+	if (matrix[row_number][col_number] == 1){
+		printf("inside clear check matrix condition\n");
+		printf("\n%d",matrix[row_number][col_number]);
+		usleep(1000000);
+		clear_matrix();
+	}
+}
+
+}
+
+void clear_matrix(void){
+
+	for (int q = 0; q < 12; q++)
+	{
+		for (int p = 0; p < 8; p++)
+			{
+		       matrix[q][p] = new_matrix[q][p];
+		    }
+	}
+}
+
+void check_full_row(void)
+{
+	for (int row_number = 10; row_number > 0; row_number--){
+	for (int col_number = 1;col_number<7;col_number ++){
+
+		if (matrix[row_number][1] == 1 && matrix[row_number][2] == 1 && matrix[row_number][3] == 1 && matrix[row_number][4] == 1 ){
+			matrix[row_number][1] = 0;
+			matrix[row_number][2] = 0;
+			matrix[row_number][3] = 0;
+			matrix[row_number][4] = 0;
+			move_row_down();
+			Score += 50;
+
+			printf("inside check full row 1\n");
+			printf("score = %d ",Score);
+		}
+		if (matrix[row_number][2] == 1 && matrix[row_number][3] == 1 && matrix[row_number][4] == 1 && matrix[row_number][5] == 1 ){
+			matrix[row_number][2] = 0;
+			matrix[row_number][3] = 0;
+			matrix[row_number][4] = 0;
+			matrix[row_number][5] = 0;
+			move_row_down();
+			Score += 50;
+			printf("inside check full row 2\n");
+			printf("score = %d ",Score);
+		}
+		if (matrix[row_number][3] == 1 && matrix[row_number][4] == 1 && matrix[row_number][5] == 1 && matrix[row_number][6] == 1 ){
+			matrix[row_number][3] = 0;
+			matrix[row_number][4] = 0;
+			matrix[row_number][5] = 0;
+			matrix[row_number][6] = 0;
+			move_row_down();
+			Score += 50;
+			printf("inside check full row 3\n");
+			printf("score = %d ",Score);
+		}
+	}
+	}
+}
+
+
+void move_row_down(void)
+{
+	for (int q = 10; q > 0; q--)
+	{
+		for (int p = 1; p < 7; p++)
+			{
+		       matrix[q][p] = matrix[q-1][p];
+		       matrix[q-1][p] = 0;
+		    }
+	}
+}
+
+void Level_up (void)
+{
+	if (1500 > Score >= 500)
+	{
+		Game_speed = 12;
+		printf("Level 2\n");
+	}
+	if (Score >= 1500)
+	{
+		Game_speed = 10;
+		printf("Level 3\n");
+	}
+}
+
+void DisplayPrint(char *text)
+{
+unsigned char init_DOGM163_3V[9] = {0x39, 0x15, 0x55, 0x70, 0x38, 0x0C, 0x01, 0x06};
+ for(int i=0; i<9; i++)
+ {
+	 IOWR_ALTERA_AVALON_PIO_DATA(SPIRESET_BASE, 0);
+	 IOWR_ALTERA_AVALON_SPI_TXDATA(SPI_1_BASE, init_DOGM163_3V[i]);
+	 usleep(250000);
+ }
+
+ unsigned char cursor = 0x08;
+ IOWR_ALTERA_AVALON_PIO_DATA(SPIRESET_BASE, 0);
+ IOWR_ALTERA_AVALON_SPI_TXDATA(SPI_1_BASE, cursor);
+ usleep(250000);
+
+ IOWR_ALTERA_AVALON_PIO_DATA(SPIRESET_BASE, 0);
+ IOWR_ALTERA_AVALON_SPI_TXDATA(SPI_1_BASE, 0x80);
+ usleep(250000);
+
+
+ IOWR_ALTERA_AVALON_PIO_DATA(SPIRESET_BASE, 1);
+ for(int i=0; i<strlen(text); i++)
+ {
+	 IOWR_ALTERA_AVALON_SPI_TXDATA(SPI_1_BASE, text[i]);
+	 usleep(250000);
+ }
+
+
+}
